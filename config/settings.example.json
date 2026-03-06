@@ -1,0 +1,60 @@
+{
+  "timezone": "Europe/Rome",
+  "env_files": [
+    ".env"
+  ],
+  "google": {
+    "token_file": "/absolute/path/to/google/token.json"
+  },
+  "calendar": {
+    "include_all_calendars": true,
+    "calendar_ids": [],
+    "report_days": 3,
+    "reminder_days": 14
+  },
+  "daily_report": {
+    "report_path": "data/reports/daily_report.md",
+    "html_path": "data/reports/daily_report.html",
+    "header_image_path": "static/daily_report.png",
+    "json_path": "data/reports/daily_report.json",
+    "state_path": "data/state/send_state.json",
+    "subject": "Daily Report",
+    "compose_every_hours": 4,
+    "send_hour": 5,
+    "send_minute": 30,
+    "weather": {
+      "latitude": 45.07,
+      "longitude": 7.69
+    },
+    "telegram_chat_ids": [
+      "123456789"
+    ],
+    "email_recipients": [
+      "you@example.com"
+    ]
+  },
+  "reminders": {
+    "state_path": "data/state/reminder_state.json",
+    "offsets_minutes": [
+      90,
+      45,
+      15
+    ],
+    "lookback_minutes": 6,
+    "always_telegram_chat_ids": [
+      "123456789"
+    ],
+    "always_email_recipients": [
+      "you@example.com"
+    ],
+    "owner_aliases": {
+      "you": "You"
+    },
+    "owner_telegram_chat_ids": {
+      "You": "123456789"
+    },
+    "owner_email_recipients": {
+      "You": "you@example.com"
+    }
+  }
+}

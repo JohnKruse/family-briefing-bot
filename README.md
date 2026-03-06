@@ -39,7 +39,17 @@ Important values:
 - `daily_report.email_recipients`
 - `reminders.*`
 - `google.token_file`
+- `daily_report.header_image_path`
 - `env_files` (where `TELEGRAM_BOT_TOKEN` and weather API key are sourced)
+
+## Header image customization (single-repo workflow)
+
+- Git-tracked default header: `static/daily_report.png` (generic/public-safe).
+- Local personal header: put your private image at `static/local/daily_report.png`.
+- Set `daily_report.header_image_path` in your local `config/settings.json` to:
+  - `static/local/daily_report.png`
+
+`static/local/*` is gitignored, so your personal image will never be pushed.
 
 ## Google setup
 

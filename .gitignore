@@ -18,3 +18,7 @@ data/state/*.json
 # Local config with private IDs/recipients
 config/settings.json
 !config/settings.example.json
+
+# Optional local-only branding assets (keep custom headers out of Git)
+static/local/*
+!static/local/.gitkeep

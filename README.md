@@ -17,7 +17,7 @@ This repo is intentionally independent from Agent Zero custom scheduler tasks.
 ## Setup
 
 ```bash
-cd /Users/john/Documents/Python/family-briefing-bot
+cd family-briefing-bot
 ~/common_env/bin/python -m pip install -r requirements.txt
 ```
 
@@ -78,7 +78,7 @@ This app needs:
 ## Manual runs
 
 ```bash
-cd /Users/john/Documents/Python/family-briefing-bot
+cd family-briefing-bot
 ~/common_env/bin/python scripts/generate_daily_report.py
 ~/common_env/bin/python scripts/send_daily_report.py
 ~/common_env/bin/python scripts/send_appointment_reminders.py
@@ -88,7 +88,7 @@ cd /Users/john/Documents/Python/family-briefing-bot
 ## launchd install
 
 ```bash
-cd /Users/john/Documents/Python/family-briefing-bot
+cd family-briefing-bot
 bash launchd/install_launchd.sh
 ```
 

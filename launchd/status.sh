@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-for label in com.kruser.scheduling.compose com.kruser.scheduling.send com.kruser.scheduling.reminders; do
+for label in com.familybriefing.scheduling.compose com.familybriefing.scheduling.send com.familybriefing.scheduling.reminders; do
   echo "=== $label ==="
   launchctl print "gui/$(id -u)/$label" 2>/dev/null | sed -n '1,40p' || echo "not loaded"
   echo

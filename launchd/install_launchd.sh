@@ -24,8 +24,8 @@ install_job() {
   echo "Installed $label"
 }
 
-install_job "com.kruser.scheduling.compose" "$PROJECT_ROOT/launchd/templates/com.kruser.scheduling.compose.plist.template"
-install_job "com.kruser.scheduling.send" "$PROJECT_ROOT/launchd/templates/com.kruser.scheduling.send.plist.template"
-install_job "com.kruser.scheduling.reminders" "$PROJECT_ROOT/launchd/templates/com.kruser.scheduling.reminders.plist.template"
+install_job "com.familybriefing.scheduling.compose" "$PROJECT_ROOT/launchd/templates/com.familybriefing.scheduling.compose.plist.template"
+install_job "com.familybriefing.scheduling.send" "$PROJECT_ROOT/launchd/templates/com.familybriefing.scheduling.send.plist.template"
+install_job "com.familybriefing.scheduling.reminders" "$PROJECT_ROOT/launchd/templates/com.familybriefing.scheduling.reminders.plist.template"
 
 echo "Done. Use launchd/status.sh to inspect jobs and logs."

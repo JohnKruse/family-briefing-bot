@@ -12,7 +12,7 @@ This repo is intentionally independent from Agent Zero custom scheduler tasks.
 
 - Python: `~/common_env/bin/python`
 - Secrets/env: loaded from `config/settings.json` -> `env_files`
-- Google OAuth token: configured in `config/settings.json` (`google.token_file`)
+- Google OAuth token: configured in `config/settings.json` (`google.google_creds_path`)
 
 ## Setup
 
@@ -38,9 +38,15 @@ Important values:
 - `daily_report.telegram_chat_ids`
 - `daily_report.email_recipients`
 - `reminders.*`
-- `google.token_file`
+- `google.google_creds_path` (absolute path to authorized user JSON)
 - `daily_report.header_image_path`
+- `daily_report.close_line_source` (`online` or `local`)
 - `env_files` (where `TELEGRAM_BOT_TOKEN` and weather API key are sourced)
+
+Recommended durable setup (multi-project, multi-account):
+- Keep each project's OAuth credentials in a dedicated identity file.
+- Set `google.google_creds_path` in `config/settings.json` to the full absolute path.
+- Never share one token file path across multiple projects/accounts.
 
 ## Header image customization (single-repo workflow)
 
@@ -63,9 +69,10 @@ This app needs:
 3. Configure OAuth consent screen and add your account as a test user (if app is in testing).
 4. Create an OAuth client (`Desktop app` is simplest).
 5. Generate a token JSON that includes scopes:
-   - `https://www.googleapis.com/auth/calendar.readonly`
+   - `https://www.googleapis.com/auth/calendar`
    - `https://www.googleapis.com/auth/gmail.modify`
-6. Put that token file somewhere stable and set `google.token_file` in `config/settings.json`.
+6. Put that authorized user JSON file somewhere stable and set:
+   - `config/settings.json`: `google.google_creds_path=/absolute/path/to/google-authorized-user.json`
 7. Add a weather key to one of your `env_files` using one of:
    - `GOOGLE_MAPS_KEY=...`
    - `GOOGLE_MAPS_API_KEY=...`

@@ -9,10 +9,12 @@ from typing import Iterable
 import requests
 
 
-def send_telegram_messages(bot_token: str, chat_ids: Iterable[str], text: str) -> None:
+def send_telegram_messages(bot_token: str, chat_ids: Iterable[str], text: str, parse_mode: str | None = None) -> None:
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     for chat_id in chat_ids:
         payload = {"chat_id": str(chat_id), "text": text[:4096]}
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
         response = requests.post(url, json=payload, timeout=20)
         response.raise_for_status()
 

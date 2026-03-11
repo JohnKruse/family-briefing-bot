@@ -18,6 +18,8 @@ install_job() {
   local plist="$AGENT_DIR/$label.plist"
 
   render_template "$template" "$plist"
+  # Clear any persisted disabled state before bootstrap.
+  launchctl enable "gui/$(id -u)/$label" >/dev/null 2>&1 || true
   launchctl bootout "gui/$(id -u)/$label" >/dev/null 2>&1 || true
   launchctl bootstrap "gui/$(id -u)" "$plist"
   launchctl enable "gui/$(id -u)/$label"

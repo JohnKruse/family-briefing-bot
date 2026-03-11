@@ -6,6 +6,7 @@ import os
 import random
 import re
 import tempfile
+from shutil import copy2
 from html import escape
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -80,6 +81,13 @@ def _read_json(path: Path, default: Any) -> Any:
 def _write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+
+
+def _copy_reports_to_agent_zero_uploads(report_path: Path, html_path: Path) -> None:
+    uploads_dir = Path("/Users/john/Documents/Python/agent-zero/usr/uploads")
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    copy2(report_path, uploads_dir / report_path.name)
+    copy2(html_path, uploads_dir / html_path.name)
 
 
 def _google_weather_icon(cond_type: str) -> str:
@@ -160,6 +168,21 @@ def _weather_entries_google(latitude: float, longitude: float) -> tuple[list[dic
     }
     if not resp.ok:
         return [], capture
+
+    def _qpf_mm(forecast: dict[str, Any]) -> float | None:
+        precip = (forecast or {}).get("precipitation") or {}
+        qpf = precip.get("qpf") or {}
+        unit = str(qpf.get("unit", "")).upper()
+        quantity = qpf.get("quantity")
+        if quantity is None:
+            return None
+        if unit and unit != "MILLIMETERS":
+            return None
+        try:
+            return float(quantity)
+        except Exception:
+            return None
+
     out: list[dict[str, Any]] = []
     for day in payload.get("forecastDays", []):
         date_info = day.get("displayDate", {})
@@ -168,6 +191,7 @@ def _weather_entries_google(latitude: float, longitude: float) -> tuple[list[dic
         d = int(date_info.get("day", 1))
         dt = datetime(y, m, d)
         daytime = day.get("daytimeForecast") or {}
+        nighttime = day.get("nighttimeForecast") or {}
         wc = daytime.get("weatherCondition") or {}
         desc = ((wc.get("description") or {}).get("text") or "").strip()
         cond_type = str(wc.get("type", "")).strip()
@@ -184,6 +208,14 @@ def _weather_entries_google(latitude: float, longitude: float) -> tuple[list[dic
         if speed is not None and gust is not None:
             unit = "km/h" if speed_unit == "KILOMETERS_PER_HOUR" and gust_unit == "KILOMETERS_PER_HOUR" else "units"
             wind_text = f"Wind {float(speed):.0f} {unit} gusting to {float(gust):.0f} {unit}"
+
+        day_qpf = _qpf_mm(daytime)
+        night_qpf = _qpf_mm(nighttime)
+        if day_qpf is None and night_qpf is None:
+            precip_mm = None
+        else:
+            precip_mm = float((day_qpf or 0.0) + (night_qpf or 0.0))
+
         out.append(
             {
                 "date_iso": dt.date().isoformat(),
@@ -192,7 +224,7 @@ def _weather_entries_google(latitude: float, longitude: float) -> tuple[list[dic
                 "desc": desc,
                 "hi_c": float((day.get("maxTemperature") or {}).get("degrees", 0.0)),
                 "lo_c": float((day.get("minTemperature") or {}).get("degrees", 0.0)),
-                "precip_mm": None,
+                "precip_mm": precip_mm,
                 "wind_text": wind_text,
                 "source": "google",
             }
@@ -299,14 +331,15 @@ def _events_by_day(events: list[CalendarEvent], timezone_name: str, days: int) -
     for i in range(days):
         day = now + timedelta(days=i)
         key = day.date().isoformat()
-        lines.append(f"- {day.strftime('%a, %d %B %Y')}")
+        lines.append(f"- **{day.strftime('%a, %d %B %Y')}**")
         entries = sorted(bucket.get(key, []), key=lambda e: (e.start_local, e.title.lower()))
         if not entries:
             lines.append("  - No appointments")
             continue
         for event in entries:
+            calendar_text = ", ".join(event.calendar_names) if getattr(event, "calendar_names", None) else event.calendar_name
             lines.append(
-                f"  - {event.start_local.strftime('%H:%M')} - {event.end_local.strftime('%H:%M')} | {event.title} | {event.calendar_name}"
+                f"  - {event.start_local.strftime('%H:%M')} - {event.end_local.strftime('%H:%M')} | {event.title} | {calendar_text}"
             )
     return "\n".join(lines)
 
@@ -334,37 +367,79 @@ def _events_by_day_html(events: list[CalendarEvent], timezone_name: str, days: i
             continue
         parts.append("<ul>")
         for event in entries:
+            calendar_text = ", ".join(event.calendar_names) if getattr(event, "calendar_names", None) else event.calendar_name
             parts.append(
                 "<li>"
                 f"{escape(event.start_local.strftime('%H:%M'))} - {escape(event.end_local.strftime('%H:%M'))} | "
-                f"{escape(event.title)} | {escape(event.calendar_name)}"
+                f"{escape(event.title)} | {escape(calendar_text)}"
                 "</li>"
             )
         parts.append("</ul>")
     return "".join(parts)
 
 
-def _pick_close_line(state_path: Path, now_local: datetime) -> str:
-    today = now_local.strftime("%Y-%m-%d")
+def _pick_close_line(state_path: Path, now_local: datetime, source: str = "online") -> str:
     state = _read_json(state_path, {})
-    if state.get("last_day") == today and state.get("last_close"):
-        return str(state["last_close"])
-    rng = random.Random(int(now_local.strftime("%Y%m%d")))
-    choice = rng.choice(CLOSE_LINES)
-    if state.get("last_close") == choice and len(CLOSE_LINES) > 1:
-        idx = CLOSE_LINES.index(choice)
-        choice = CLOSE_LINES[(idx + 1) % len(CLOSE_LINES)]
-    _write_json(state_path, {"last_day": today, "last_close": choice})
+    recent = [str(x).strip() for x in state.get("recent_closes", []) if str(x).strip()]
+
+    quote = ""
+    normalized_source = (source or "online").strip().lower()
+    if normalized_source != "local":
+        try:
+            resp = requests.get("https://zenquotes.io/api/random", timeout=8)
+            if resp.ok:
+                payload = resp.json()
+                if isinstance(payload, list) and payload:
+                    item = payload[0] if isinstance(payload[0], dict) else {}
+                    text = str(item.get("q", "")).strip()
+                    author = str(item.get("a", "")).strip()
+                    if text:
+                        quote = f"{text} - {author}" if author else text
+        except Exception:
+            quote = ""
+
+    if quote and quote not in recent:
+        choice = quote
+    else:
+        pool = [line for line in CLOSE_LINES if line not in set(recent[-5:])]
+        if not pool:
+            pool = CLOSE_LINES[:]
+        choice = random.choice(pool)
+
+    today = now_local.strftime("%Y-%m-%d")
+    updated_recent = (recent + [choice])[-15:]
+    _write_json(
+        state_path,
+        {
+            "last_day": today,
+            "last_close": choice,
+            "last_generated_at": now_local.isoformat(),
+            "recent_closes": updated_recent,
+        },
+    )
     return choice
+
+
+def _resolve_header_image_path(report_cfg: dict[str, Any]) -> Path | None:
+    local_header = abs_path("static/local/daily_report.png")
+    if local_header.exists():
+        return local_header
+    configured = str(report_cfg.get("header_image_path", "")).strip()
+    if not configured:
+        return None
+    resolved = abs_path(configured)
+    if resolved.exists():
+        return resolved
+    return None
 
 
 def generate_daily_report(settings: dict[str, Any]) -> dict[str, Any]:
     tz_name = settings["timezone"]
     report_cfg = settings["daily_report"]
     calendar_cfg = settings["calendar"]
-    token_file = settings["google"]["token_file"]
+    google_creds_path = settings["google"]["google_creds_path"]
 
-    calendar_service = build_calendar_service(token_file)
+    calendar_service = build_calendar_service(google_creds_path)
     events = fetch_events(
         service=calendar_service,
         timezone=tz_name,
@@ -386,10 +461,14 @@ def generate_daily_report(settings: dict[str, Any]) -> dict[str, Any]:
     appt_html = _events_by_day_html(events, timezone_name=tz_name, days=int(calendar_cfg.get("report_days", 3)))
 
     close_state_path = abs_path("data/state/daily_report_state.json")
-    close_line = _pick_close_line(close_state_path, now_local=now_local)
-    header_image_path = abs_path(report_cfg.get("header_image_path", ""))
+    close_line = _pick_close_line(
+        close_state_path,
+        now_local=now_local,
+        source=str(report_cfg.get("close_line_source", "online")),
+    )
+    header_image_path = _resolve_header_image_path(report_cfg)
     header_html = ""
-    if str(report_cfg.get("header_image_path", "")).strip() and header_image_path.exists():
+    if header_image_path:
         header_html = (
             '<div style="text-align:left; margin-bottom: 12px;">'
             '<img src="cid:daily_report_header" alt="Daily Report Header" '
@@ -398,12 +477,12 @@ def generate_daily_report(settings: dict[str, Any]) -> dict[str, Any]:
         )
 
     report = (
-        f"DAILY REPORT - {now_local.strftime('%A, %d %B %Y %H:%M')}\n\n"
-        f"WEATHER (3 DAYS)\n"
-        f"Source: {weather_source}\n"
+        f"**Daily Report - {now_local.strftime('%A, %d %B %Y %H:%M')}**\n\n"
+        f"**Weather (3 Days)**\n"
+        f"**Source:** {weather_source}\n"
         f"{weather_text}\n\n"
-        f"APPOINTMENTS (3 DAYS)\n{appt_text}\n\n"
-        f"***{close_line}***"
+        f"**Appointments (3 Days)**\n{appt_text}\n\n"
+        f"*{close_line}*"
     )
     report_html = (
         "<html><body style=\"font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif; "
@@ -425,6 +504,7 @@ def generate_daily_report(settings: dict[str, Any]) -> dict[str, Any]:
     google_weather_path = abs_path("data/google_weather.json")
     _atomic_write(report_path, report)
     _atomic_write(html_path, report_html)
+    _copy_reports_to_agent_zero_uploads(report_path, html_path)
     _write_json(google_weather_path, google_capture)
     _write_json(
         json_path,
@@ -463,13 +543,13 @@ def generate_daily_report(settings: dict[str, Any]) -> dict[str, Any]:
 
 def send_daily_report(settings: dict[str, Any], force: bool = False) -> dict[str, Any]:
     report_cfg = settings["daily_report"]
-    token_file = settings["google"]["token_file"]
+    google_creds_path = settings["google"]["google_creds_path"]
 
     report_path = abs_path(report_cfg["report_path"])
     if not report_path.exists():
         raise FileNotFoundError(f"Report not found: {report_path}")
     html_path = abs_path(report_cfg.get("html_path", "data/reports/daily_report.html"))
-    header_image_path = abs_path(report_cfg.get("header_image_path", ""))
+    header_image_path = _resolve_header_image_path(report_cfg)
 
     report_text = report_path.read_text(encoding="utf-8")
     report_html = html_path.read_text(encoding="utf-8") if html_path.exists() else None
@@ -491,11 +571,11 @@ def send_daily_report(settings: dict[str, Any], force: bool = False) -> dict[str
     emails = [str(x) for x in report_cfg.get("email_recipients", [])]
 
     inline_images: dict[str, bytes] | None = None
-    if report_html and header_image_path.exists():
+    if report_html and header_image_path:
         inline_images = {"daily_report_header": header_image_path.read_bytes()}
 
-    send_telegram_messages(bot_token=bot_token, chat_ids=chat_ids, text=report_text)
-    gmail_service = build_gmail_service(token_file)
+    send_telegram_messages(bot_token=bot_token, chat_ids=chat_ids, text=report_text, parse_mode="Markdown")
+    gmail_service = build_gmail_service(google_creds_path)
     send_email_via_gmail(
         gmail_service=gmail_service,
         recipients=emails,
@@ -517,7 +597,10 @@ def send_daily_report(settings: dict[str, Any], force: bool = False) -> dict[str
 
 
 def _owner_tokens(event: CalendarEvent) -> list[str]:
-    tokens = [event.calendar_name.lower()]
+    calendar_tokens = [event.calendar_name.lower()]
+    if getattr(event, "calendar_names", None):
+        calendar_tokens = [str(name).lower() for name in event.calendar_names]
+    tokens = calendar_tokens
     for piece in re.split(r"[(),;/]", event.title.lower()):
         piece = piece.strip()
         if piece:
@@ -531,9 +614,9 @@ def run_appointment_reminders(settings: dict[str, Any], dry_run: bool = False) -
     tz_name = settings["timezone"]
     calendar_cfg = settings["calendar"]
     rem_cfg = settings["reminders"]
-    token_file = settings["google"]["token_file"]
+    google_creds_path = settings["google"]["google_creds_path"]
 
-    calendar_service = build_calendar_service(token_file)
+    calendar_service = build_calendar_service(google_creds_path)
     events = fetch_events(
         service=calendar_service,
         timezone=tz_name,
@@ -555,7 +638,7 @@ def run_appointment_reminders(settings: dict[str, Any], dry_run: bool = False) -
     sent_map = state.setdefault("sent", {})
 
     bot_token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
-    gmail_service = build_gmail_service(token_file)
+    gmail_service = build_gmail_service(google_creds_path)
 
     total_sent = 0
     due_count = 0

@@ -626,6 +626,7 @@ def run_appointment_reminders(settings: dict[str, Any], dry_run: bool = False) -
     )
 
     offsets = [int(x) for x in rem_cfg.get("offsets_minutes", [90, 45, 15])]
+    email_offsets = {int(x) for x in rem_cfg.get("email_offsets_minutes", [90])}
     lookback = int(rem_cfg.get("lookback_minutes", 6))
     now = datetime.now(ZoneInfo(tz_name))
 
@@ -664,6 +665,9 @@ def run_appointment_reminders(settings: dict[str, Any], dry_run: bool = False) -
                     tg_ids.add(owner_tg[owner])
                 if owner in owner_email:
                     email_ids.add(owner_email[owner])
+
+            if offset not in email_offsets:
+                email_ids.clear()
 
             msg = (
                 f"Reminder: '{event.title}' starts in {offset} minutes "

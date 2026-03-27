@@ -3,7 +3,7 @@
 Standalone scheduler project for:
 - Composing the household daily report every 4 hours.
 - Sending the daily report at 05:30 (local machine time).
-- Sending appointment reminders (90/45/15 min before start) every 5 minutes.
+- Sending appointment reminders every 5 minutes. Telegram defaults to 90/45/15 minutes before start; email defaults to 90 minutes only.
 - Writing both Markdown and HTML daily reports.
 
 This repo is intentionally independent from Agent Zero custom scheduler tasks.
@@ -124,5 +124,8 @@ bash launchd/status.sh
 ## Notes
 
 - launchd schedules use macOS local timezone.
+- Reminder timing is channel-aware:
+  - `reminders.offsets_minutes` controls Telegram reminder offsets.
+  - `reminders.email_offsets_minutes` controls email reminder offsets and defaults to `[90]`.
 - If a token expires and cannot refresh, rerun OAuth in the project that owns your Google credentials/token.
 - Google Weather daily forecasts can include a pre-midnight carryover day in early runs. The report logic normalizes weather to local `timezone` midnight and always renders `today + next 2 days`.

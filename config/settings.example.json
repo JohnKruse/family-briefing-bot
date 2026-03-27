@@ -4,7 +4,7 @@
     ".env"
   ],
   "google": {
-    "token_file": "/absolute/path/to/google/token.json"
+    "google_creds_path": "/absolute/path/to/google-authorized-user.json"
   },
   "calendar": {
     "include_all_calendars": true,
@@ -19,6 +19,7 @@
     "json_path": "data/reports/daily_report.json",
     "state_path": "data/state/send_state.json",
     "subject": "Daily Report",
+    "close_line_source": "online",
     "compose_every_hours": 4,
     "send_hour": 5,
     "send_minute": 30,
@@ -39,6 +40,9 @@
       90,
       45,
       15
+    ],
+    "email_offsets_minutes": [
+      90
     ],
     "lookback_minutes": 6,
     "always_telegram_chat_ids": [

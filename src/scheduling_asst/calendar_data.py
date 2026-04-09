@@ -13,6 +13,7 @@ class CalendarEvent:
     start_local: datetime
     end_local: datetime
     calendar_name: str
+    calendar_names: list[str]
 
 
 def _parse_google_dt(raw: dict[str, Any], tz: ZoneInfo) -> datetime:
@@ -75,13 +76,21 @@ def fetch_events(service, timezone: str, days_ahead: int, include_all: bool, cal
             end_local = _parse_google_dt(end_raw, tz)
             title = str(item.get("summary", "Appointment")).strip() or "Appointment"
             event_id = str(item.get("id", "")).strip() or f"{calendar_id}:{start_local.isoformat()}:{title}"
-            key = f"{event_id}|{start_local.isoformat()}"
+            normalized_title = " ".join(title.lower().split())
+            key = f"{start_local.isoformat()}|{end_local.isoformat()}|{normalized_title}"
+            existing = merged.get(key)
+            if existing:
+                if calendar_name not in existing.calendar_names:
+                    existing.calendar_names.append(calendar_name)
+                    existing.calendar_name = ", ".join(existing.calendar_names)
+                continue
             merged[key] = CalendarEvent(
                 event_id=event_id,
                 title=title,
                 start_local=start_local,
                 end_local=end_local,
                 calendar_name=calendar_name,
+                calendar_names=[calendar_name],
             )
 
     return sorted(merged.values(), key=lambda e: (e.start_local, e.end_local, e.title.lower()))

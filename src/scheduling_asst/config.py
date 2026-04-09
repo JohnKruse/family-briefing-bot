@@ -42,6 +42,10 @@ def load_settings(settings_path: str | None = None) -> dict[str, Any]:
     env_files = settings.get("env_files", []) if isinstance(settings, dict) else []
     if isinstance(env_files, list):
         load_env_files([str(x) for x in env_files], root)
+    google_cfg = settings.get("google", {}) if isinstance(settings, dict) else {}
+    if isinstance(google_cfg, dict) and "google_creds_path" not in google_cfg and "token_file" in google_cfg:
+        # Backward-compatible migration path: old key -> new config key.
+        google_cfg["google_creds_path"] = google_cfg["token_file"]
     return settings
 
 
